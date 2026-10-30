@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Harvest Countdown — AgriSchedule{% endblock %}
+
+{% block content %}
+<div class="page-header-flex">
+    <div>
+        <h1 class="page-title">Harvest Countdown</h1>
+        <p class="page-subtitle">Track physiological maturity and prepare harvesting equipment, labor, and drying logistics.</p>
+    </div>
+    {% if farmers %}
+    <div class="farmer-selector-box">
+        <label for="farmerHarvestSelector" style="margin: 0; font-size: 0.8rem; color: var(--text-muted);">Switch Farmer:</label>
+        <select id="farmerHarvestSelector" onchange="window.location.href='/harvest/' + this.value">
+            {% for f in farmers %}
+            <option value="{{ f.id }}" {% if current_farmer and current_farmer.id == f.id %}selected{% endif %}>
+                {{ f.name }} ({{ f.crop }})
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+</div>
+
+{% if not current_farmer %}
+<div class="card empty-state">
+    <div class="empty-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    </div>
+    <h3>No Farmer Profile Selected</h3>
+    <p class="muted">Please register a farmer profile first to track your harvest countdown.</p>
+    <a href="{{ url_for('register_page') }}" class="btn-primary" style="display:inline-block; margin-top: 1rem;">Register Farmer →</a>
+</div>
+{% elif not harvest_info %}
+<div class="card empty-state">
+    <div class="empty-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    </div>
+    <h3>Harvest Stage Not Configured</h3>
+    <p class="muted">No explicit harvest stage found in the crop calendar for {{ current_farmer.crop }} ({{ current_farmer.variety }}).</p>
+</div>
+{% else %}
+
+<!-- Hero Countdown Meter -->
+<div class="hero-card harvest-hero">
+    <div class="harvest-hero-left">
+        <div class="hero-eyebrow">Target Harvest Window</div>
+        <div class="hero-headline">{{ current_farmer.crop }} • {{ harvest_info.stage_name }}</div>
+        <div class="hero-sub">
+            Target date: <strong>{{ harvest_info.harvest_date.strftime('%A, %d %B %Y') }}</strong> for {{ current_farmer.field_area }} acres in {{ current_farmer.location }}.
+        </div>
+    </div>
+    <div class="harvest-hero-right">
+        <div class="countdown-circle">
+            <div class="countdown-number">
+                {% if harvest_info.days_left > 0 %}
+                    {{ harvest_info.days_left }}
+                {% elif harvest_info.days_left == 0 %}
+                    TODAY
+                {% else %}
+                    {{ harvest_info.days_left|abs }}
+                {% endif %}
+            </div>
+            <div class="countdown-label">
+                {% if harvest_info.days_left > 0 %}
+                    Days Remaining
+                {% elif harvest_info.days_left == 0 %}
+                    Harvest Ready
+                {% else %}
+                    Days Past Target
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 4 Key Readiness Checks -->
+<h3 class="section-title">Physiological Maturity &amp; Readiness Indicators</h3>
+<div class="readiness-grid">
+    <div class="readiness-card">
+        <div class="readiness-title">Visual Color Test</div>
+        <p class="readiness-desc">80% to 85% of grains or panicles should turn golden yellow/straw color. The upper leaves may start drying while lower stems remain slightly green.</p>
+    </div>
+    <div class="readiness-card">
+        <div class="readiness-title">Terminal Water Cutoff</div>
+        <p class="readiness-desc">Drain standing water 10 to 14 days prior to harvest. This facilitates field drying, firms soil for harvesters, and hardens grains uniformly.</p>
+    </div>
+    <div class="readiness-card">
+        <div class="readiness-title">Moisture Content Check</div>
+        <p class="readiness-desc">Ideal grain harvest moisture is 20-25%. If harvested too dry (&lt;18%), grain shattering losses increase; if too wet (&gt;25%), drying costs spike.</p>
+    </div>
+    <div class="readiness-card">
+        <div class="readiness-title">3-Day Weather Window</div>
+        <p class="readiness-desc">Check the Weather Advisory page to guarantee a minimum 48-72 hour dry weather window before initiating manual cutting or combine harvesting.</p>
+    </div>
+</div>
+
+<!-- Pre-Harvest Action Checklist -->
+<div class="card checklist-card" style="margin-top: 1.5rem;">
+    <h3 class="card-title">Pre-Harvest Operational Checklist</h3>
+    <div class="checklist-items">
+        <label class="check-item">
+            <input type="checkbox" checked />
+            <span class="checkmark"></span>
+            <div>
+                <strong>Confirm labor or mechanical harvester booking:</strong> Secure combine harvester or farm labor 7 days ahead of target maturity date.
+            </div>
+        </label>
+        <label class="check-item">
+            <input type="checkbox" checked />
+            <span class="checkmark"></span>
+            <div>
+                <strong>Prepare drying yard &amp; tarpaulins:</strong> Clear threshing floor and inspect moisture-proof tarpaulins to protect threshed grain from sudden showers.
+            </div>
+        </label>
+        <label class="check-item">
+            <input type="checkbox" />
+            <span class="checkmark"></span>
+            <div>
+                <strong>Clean gunny bags / storage bins:</strong> Sun-dry jute bags and spray storage rooms with recommended sanitizers to prevent weevil infestations.
+            </div>
+        </label>
+        <label class="check-item">
+            <input type="checkbox" />
+            <span class="checkmark"></span>
+            <div>
+                <strong>Verify MSP &amp; Local Mandi Prices:</strong> Check current procurement prices at local APMC mandi or PACS (Primary Agricultural Credit Society).
+            </div>
+        </label>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}

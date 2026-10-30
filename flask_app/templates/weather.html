@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}Weather Advisory — AgriSchedule{% endblock %}
+
+{% block content %}
+<div class="page-header-flex">
+    <div>
+        <h1 class="page-title">Weather-Based Agricultural Advisory</h1>
+        <p class="page-subtitle">Real-time meteorology via Open-Meteo with hyper-local farming risk indicators.</p>
+    </div>
+    {% if farmers %}
+    <div class="farmer-selector-box">
+        <label for="farmerWeatherSelector" style="margin: 0; font-size: 0.8rem; color: var(--text-muted);">Select Farmer / Field:</label>
+        <select id="farmerWeatherSelector" onchange="window.location.href='/weather/' + this.value">
+            {% for f in farmers %}
+            <option value="{{ f.id }}" {% if current_farmer and current_farmer.id == f.id %}selected{% endif %}>
+                {{ f.name }} ({{ f.location }})
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Location search / geocode status card -->
+<div class="card weather-location-card">
+    <form method="GET" action="{{ url_for('weather_page', farmer_id=current_farmer.id if current_farmer else None) }}" class="weather-search-row">
+        <div style="flex: 1;">
+            <label style="margin: 0 0 0.3rem 0;">Field Location Name</label>
+            <input type="text" name="location" value="{{ location_name }}" placeholder="e.g. Coimbatore, Tamil Nadu or Thrissur, Kerala" style="width: 100%;" />
+        </div>
+        <button type="submit" class="btn-primary" style="margin-top: 1.4rem;">Update Weather Forecast</button>
+    </form>
+    {% if geo %}
+    <div class="geo-resolved-tag">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <span>Resolved coordinates: <strong>{{ geo.resolved_name }}</strong> (Lat: {{ geo.latitude|round(2) }}, Lon: {{ geo.longitude|round(2) }})</span>
+    </div>
+    {% endif %}
+</div>
+
+{% if not forecast %}
+<div class="card empty-state">
+    <div class="empty-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+    </div>
+    <h3>Weather Data Unavailable</h3>
+    <p class="muted">Could not retrieve weather forecast for location "{{ location_name }}". Please try entering a major town or district name.</p>
+</div>
+{% else %}
+
+<!-- Today's Advisory Hero Banner -->
+<div class="hero-card weather-hero">
+    <div class="weather-hero-left">
+        <div class="hero-eyebrow">Today's Field Advisory</div>
+        <div class="hero-headline">
+            {% if today_flags.rain_today and today_flags.high_wind_today %}
+                Precipitation &amp; High Wind Alert
+            {% elif today_flags.rain_today %}
+                Rainfall Forecast Today ({{ today_flags.precip_mm }} mm)
+            {% elif today_flags.high_wind_today %}
+                Elevated Wind Speeds ({{ today_flags.wind_kmh }} km/h)
+            {% else %}
+                Clear &amp; Favorable Field Conditions
+            {% endif %}
+        </div>
+        <div class="hero-sub" style="margin-bottom: 0;">
+            {% if today_flags.rain_today %}
+                Postpone foliar sprays and urea top-dressing. Ensure field drainage channels are open to prevent root asphyxiation.
+            {% elif today_flags.high_wind_today %}
+                Hold off on chemical pesticide spraying to avoid spray drift and uneven coverage.
+            {% else %}
+                Optimal conditions for manual weeding, field inspection, tractor operations, and scheduled irrigation.
+            {% endif %}
+        </div>
+    </div>
+    <div class="weather-hero-right">
+        <div class="weather-metric-tile">
+            <span class="metric-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M16 13v8"/><path d="M8 13v8"/><path d="M12 15v8"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/></svg>
+            </span>
+            <span class="metric-value">{{ today_flags.precip_mm or 0 }} mm</span>
+            <span class="metric-label">Rainfall</span>
+        </div>
+        <div class="weather-metric-tile">
+            <span class="metric-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>
+            </span>
+            <span class="metric-value">{{ today_flags.wind_kmh or 0 }} km/h</span>
+            <span class="metric-label">Max Wind</span>
+        </div>
+        <div class="weather-metric-tile">
+            <span class="metric-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></svg>
+            </span>
+            <span class="metric-value">{{ forecast['temperature_2m_max'][0]|round(1) }}°C</span>
+            <span class="metric-label">Peak Temp</span>
+        </div>
+    </div>
+</div>
+
+<!-- Agricultural Operations Checklist for Today -->
+<h3 class="section-title">Field Operations Suitability Guide</h3>
+<div class="operations-grid">
+    <div class="op-card {% if today_flags.rain_today or today_flags.high_wind_today %}op-card-danger{% else %}op-card-success{% endif %}">
+        <div class="op-header">
+            <span class="op-title">Pesticide / Foliar Spray</span>
+            <span class="badge {% if today_flags.rain_today or today_flags.high_wind_today %}badge-danger{% else %}badge-success{% endif %}">
+                {% if today_flags.rain_today or today_flags.high_wind_today %}DELAY{% else %}SAFE{% endif %}
+            </span>
+        </div>
+        <p class="op-desc">
+            {% if today_flags.rain_today %}
+                Precipitation washes away applied foliar solutions within 2-4 hours.
+            {% elif today_flags.high_wind_today %}
+                Wind exceeds safe spray thresholds; drift may harm neighboring crops.
+            {% else %}
+                Favorable wind and foliage dry-time ensure maximum absorption.
+            {% endif %}
+        </p>
+    </div>
+
+    <div class="op-card {% if today_flags.rain_today %}op-card-warning{% else %}op-card-success{% endif %}">
+        <div class="op-header">
+            <span class="op-title">Field Irrigation</span>
+            <span class="badge {% if today_flags.rain_today %}badge-warning{% else %}badge-success{% endif %}">
+                {% if today_flags.rain_today %}SKIP / REDUCE{% else %}RECOMMENDED{% endif %}
+            </span>
+        </div>
+        <p class="op-desc">
+            {% if today_flags.rain_today %}
+                Natural precipitation provides adequate moisture; conserve pump energy.
+            {% else %}
+                Routine water delivery recommended for current crop development stage.
+            {% endif %}
+        </p>
+    </div>
+
+    <div class="op-card {% if today_flags.rain_today %}op-card-danger{% else %}op-card-success{% endif %}">
+        <div class="op-header">
+            <span class="op-title">Fertilizer Top Dressing</span>
+            <span class="badge {% if today_flags.rain_today %}badge-danger{% else %}badge-success{% endif %}">
+                {% if today_flags.rain_today %}HOLD{% else %}PERMITTED{% endif %}
+            </span>
+        </div>
+        <p class="op-desc">
+            {% if today_flags.rain_today %}
+                Heavy rains leach nitrogen fertilizer beyond root zone. Apply after field drains.
+            {% else %}
+                Optimal to apply in moist soil conditions, ideally late afternoon.
+            {% endif %}
+        </p>
+    </div>
+</div>
+
+<!-- 7-Day Forecast Cards -->
+<h3 class="section-title">7-Day Agricultural Meteorology Forecast</h3>
+<div class="forecast-grid">
+    {% for i in range(daily_list|length) %}
+    {% set day = daily_list[i] %}
+    <div class="forecast-card {% if i == 0 %}forecast-card-today{% endif %}">
+        <div class="forecast-day">
+            {% if i == 0 %}Today{% else %}{{ day.date.strftime('%a') }}{% endif %}
+        </div>
+        <div class="forecast-date-sub">{{ day.date.strftime('%d %b') }}</div>
+        <div class="forecast-weather-icon">
+            {% if day.rain > 5.0 %}
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2"><path d="M16 13v8"/><path d="M8 13v8"/><path d="M12 15v8"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/></svg>
+            {% elif day.rain > 1.0 %}
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#93C5FD" stroke-width="2"><path d="M8 19v2"/><path d="M8 13v2"/><path d="M16 19v2"/><path d="M16 13v2"/><path d="M12 21v2"/><path d="M12 15v2"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/></svg>
+            {% elif day.wind > 25.0 %}
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F87171" stroke-width="2"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>
+            {% else %}
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            {% endif %}
+        </div>
+        <div class="forecast-temps">
+            <span class="temp-max">{{ day.temp_max|round(1) }}°</span>
+            <span class="temp-min">{{ day.temp_min|round(1) }}°</span>
+        </div>
+        <div class="forecast-stat">
+            <span>Rain:</span>
+            <strong style="color: {% if day.rain > 2.0 %}#60a5fa{% else %}var(--text-muted){% endif %};">{{ day.rain|round(1) }} mm</strong>
+        </div>
+        <div class="forecast-stat">
+            <span>Wind:</span>
+            <strong style="color: {% if day.wind > 25.0 %}#f87171{% else %}var(--text-muted){% endif %};">{{ day.wind|round(1) }} km/h</strong>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% endif %}
+{% endblock %}

@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}Crop Schedule — AgriSchedule{% endblock %}
+
+{% block content %}
+<div class="page-header-flex">
+    <div>
+        <h1 class="page-title">My Crop Schedule</h1>
+        <p class="page-subtitle">Dynamic timeline of field operations calculated from sowing date and weather conditions.</p>
+    </div>
+    {% if farmers %}
+    <div class="farmer-selector-box">
+        <label for="farmerSelector" style="margin: 0; font-size: 0.8rem; color: var(--text-muted);">Switch Farmer:</label>
+        <select id="farmerSelector" onchange="window.location.href='/schedule/' + this.value">
+            {% for f in farmers %}
+            <option value="{{ f.id }}" {% if current_farmer and current_farmer.id == f.id %}selected{% endif %}>
+                {{ f.name }} ({{ f.crop }} - {{ f.location }})
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+</div>
+
+{% if not current_farmer %}
+<div class="card empty-state">
+    <div class="empty-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    </div>
+    <h3>No Farmer Profile Selected</h3>
+    <p class="muted">Please register a farmer profile first to generate a personalized crop schedule.</p>
+    <a href="{{ url_for('register_page') }}" class="btn-primary" style="display:inline-block; margin-top: 1rem;">Register a Farmer Now →</a>
+</div>
+{% else %}
+
+<!-- Farmer Profile & Progress Header -->
+<div class="hero-card schedule-hero">
+    <div class="schedule-hero-grid">
+        <div>
+            <div class="hero-eyebrow">Personalized Field Calendar</div>
+            <div class="hero-headline">{{ current_farmer.crop }} • {{ current_farmer.variety }}</div>
+            <div class="hero-meta">
+                <span>Location: {{ current_farmer.location }}</span>
+                <span>•</span>
+                <span>Sown on {{ current_farmer.sowing_date }}</span>
+                <span>•</span>
+                <span>{{ current_farmer.field_area }} Acres</span>
+            </div>
+        </div>
+        {% if progress %}
+        <div class="progress-box">
+            <div class="progress-header">
+                <span class="progress-label">Crop Cycle Progress</span>
+                <span class="progress-percent">{{ progress.progress_percent }}%</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill" style="width: {{ progress.progress_percent }}%;"></div>
+            </div>
+            <div class="progress-footer">
+                <span>Stage: <strong>{{ progress.current_stage }}</strong></span>
+                <span>Day {{ progress.days_elapsed }} of {{ progress.total_cycle_days }}</span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Weather Advisory Banner if sensitive operations today -->
+{% if weather_flag and weather_flag.available %}
+<div class="weather-alert-box {% if weather_flag.rain_today or weather_flag.high_wind_today %}alert-active{% endif %}">
+    <div class="weather-alert-icon">
+        {% if weather_flag.rain_today %}
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2"><path d="M16 13v8"/><path d="M8 13v8"/><path d="M12 15v8"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/></svg>
+        {% elif weather_flag.high_wind_today %}
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F87171" stroke-width="2"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>
+        {% else %}
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/></svg>
+        {% endif %}
+    </div>
+    <div class="weather-alert-text">
+        <div class="weather-alert-title">
+            {% if weather_flag.rain_today %}
+                Rain Forecast Today ({{ weather_flag.precip_mm }} mm) — Irrigation &amp; Spray Advisory Active
+            {% elif weather_flag.high_wind_today %}
+                High Wind Today ({{ weather_flag.wind_kmh }} km/h) — Spray Drift Warning
+            {% else %}
+                Weather Favorable — Normal Field Operations
+            {% endif %}
+        </div>
+        <div class="weather-alert-desc">
+            {% if weather_flag.rain_today %}
+                Top-dressing fertilizers and spraying pesticides should be paused during rainfall to avoid runoff and leaching.
+            {% elif weather_flag.high_wind_today %}
+                Hold chemical spraying until wind speeds decrease to prevent pesticide drift onto non-target areas.
+            {% else %}
+                Field conditions in {{ current_farmer.location }} are clear for routine weeding and irrigation tasks.
+            {% endif %}
+        </div>
+    </div>
+    <a href="{{ url_for('weather_page', farmer_id=current_farmer.id) }}" class="btn-sm btn-outline">Full Forecast →</a>
+</div>
+{% endif %}
+
+<!-- Urgent Notifications / Action Required Feed -->
+{% if notifications %}
+<div class="card notif-card">
+    <div class="card-header-flex">
+        <h3 class="card-title">Priority Action Feed (Next 3 Days)</h3>
+        <span class="badge badge-warning">{{ notifications|length }} Actions</span>
+    </div>
+    <div class="notif-list">
+        {% for n in notifications %}
+        <div class="notif-item notif-{{ n.status }}">
+            <div class="notif-badge">
+                {% if n.status == 'today' %}TODAY{% elif n.status == 'overdue' %}OVERDUE{% else %}{{ n.days_from_today }}d LEFT{% endif %}
+            </div>
+            <div class="notif-content">
+                <div class="notif-title">{{ n.stage_name }}</div>
+                <div class="notif-instr">{{ n.instructions }}</div>
+                {% if n.weather_warning %}
+                <div class="weather-warn-tag">{{ n.weather_warning }}</div>
+                {% endif %}
+            </div>
+            <div class="notif-date">{{ n.due_date.strftime('%d %b %Y') }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Category Filters & Timeline -->
+<div class="section-header-flex">
+    <h3 class="section-title">Complete Crop Stage Timeline</h3>
+    <div class="filter-pills">
+        <button class="filter-pill active" onclick="filterStages('all', this)">All ({{ calendar|length }})</button>
+        <button class="filter-pill" onclick="filterStages('irrigation', this)">Irrigation</button>
+        <button class="filter-pill" onclick="filterStages('fertilizer', this)">Fertilizer</button>
+        <button class="filter-pill" onclick="filterStages('weeding', this)">Weeding</button>
+        <button class="filter-pill" onclick="filterStages('pesticide', this)">Pesticide</button>
+        <button class="filter-pill" onclick="filterStages('harvest', this)">Harvest</button>
+    </div>
+</div>
+
+<div class="timeline-container">
+    {% for s in calendar %}
+    <div class="timeline-card status-{{ s.status }} category-{{ s.category }}" data-category="{{ s.category }}">
+        <div class="timeline-left">
+            <div class="day-offset-bubble">Day {{ s.day_offset }}</div>
+            <div class="timeline-connector"></div>
+        </div>
+        <div class="timeline-main">
+            <div class="timeline-top">
+                <div class="stage-name-box">
+                    <span class="stage-title">{{ s.stage_name }}</span>
+                    <span class="category-badge">{{ s.category }}</span>
+                </div>
+                <div class="status-box">
+                    <span class="badge badge-{{ s.status }}">{{ s.status|upper }}</span>
+                    <span class="due-date-text">{{ s.due_date.strftime('%a, %d %b %Y') }}</span>
+                </div>
+            </div>
+
+            <div class="timeline-body">
+                <p class="instruction-text">{{ s.instructions }}</p>
+                {% if s.weather_warning %}
+                <div class="weather-notice-box">
+                    <strong>Advisory:</strong> {{ s.weather_warning }}
+                </div>
+                {% elif s.weather_sensitive %}
+                <div class="weather-sensitive-tag">
+                    Weather-sensitive operation (affected by rain / high wind)
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% endif %}
+
+<script>
+function filterStages(cat, btn) {
+    document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const cards = document.querySelectorAll('.timeline-card');
+    cards.forEach(c => {
+        if (cat === 'all' || c.getAttribute('data-category') === cat) {
+            c.style.display = 'flex';
+        } else {
+            c.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

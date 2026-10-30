@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Government Schemes &amp; Subsidies — AgriSchedule{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Govt. Schemes &amp; Subsidies</h1>
+    <p class="page-subtitle">Central and State agricultural assistance programs, financial aid, and insurance coverage for farmers.</p>
+</div>
+
+<div class="hero-card schemes-hero">
+    <div class="hero-eyebrow">Financial Support &amp; Welfare</div>
+    <div class="hero-headline">Empowering Every Indian Farmer</div>
+    <div class="hero-sub">Direct income transfers, subsidized insurance premiums, low-interest crop loans, and soil testing services provided by the Ministry of Agriculture &amp; Farmers Welfare.</div>
+</div>
+
+<div class="schemes-grid">
+    {% for s in schemes %}
+    <div class="card scheme-card">
+        <div class="scheme-header">
+            <span class="scheme-badge">Government Portal</span>
+            <h3 class="scheme-name">{{ s.name }}</h3>
+        </div>
+        <div class="scheme-body">
+            <div class="scheme-section">
+                <span class="scheme-label">Key Benefits:</span>
+                <p class="scheme-text">{{ s.summary }}</p>
+            </div>
+            <div class="scheme-section">
+                <span class="scheme-label">Eligibility / Beneficiaries:</span>
+                <p class="scheme-text muted">{{ s.who }}</p>
+            </div>
+        </div>
+        <div class="scheme-footer">
+            <a href="{{ s.link }}" target="_blank" rel="noopener noreferrer" class="btn-primary scheme-btn">
+                Visit Official Portal ({{ s.link.split('//')[-1] }}) ↗
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="card disclaimer-card" style="margin-top: 2rem;">
+    <div class="disclaimer-title">Important Advisory Notice</div>
+    <p class="disclaimer-text">{{ disclaimer }}</p>
+</div>
+{% endblock %}

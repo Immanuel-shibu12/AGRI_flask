@@ -1,0 +1,624 @@
+{% extends "base.html" %}
+
+{% block title %}Pest &amp; Disease Guidance — AgriSchedule{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Pest &amp; Disease Guidance</h1>
+    <p class="page-subtitle">Machine learning vision diagnostic engine trained to classify fungal lesions, chlorosis, and insect damage.</p>
+</div>
+
+<div class="hero-card pest-hero">
+    <div class="hero-eyebrow">Scikit-Learn Vision Classifier Active</div>
+    <div class="hero-headline">Crop Diagnostic System</div>
+    <div class="hero-sub">Upload a leaf photograph or activate the live camera scanner to run real-time inference through our trained Random Forest model.</div>
+</div>
+
+<!-- Mode Switcher: File Upload vs. Live Camera Scanner -->
+<div class="scanner-mode-switch">
+    <button type="button" class="mode-tab active" id="tabUploadBtn" onclick="switchScannerMode('upload')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span>Upload Leaf Photo</span>
+    </button>
+    <button type="button" class="mode-tab" id="tabCameraBtn" onclick="switchScannerMode('camera')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+        <span>Live Camera Scanner</span>
+    </button>
+</div>
+
+<div class="pest-layout-grid">
+    <!-- Left Column: Input Modes -->
+    <div>
+        <!-- Mode 1: File Upload Form -->
+        <div class="card" id="uploadModeContainer">
+            <h3 class="card-title">Upload Leaf Image</h3>
+            <p class="card-caption">Upload a close-up photo showing leaf texture and discoloration for inference.</p>
+
+            <form method="POST" action="{{ url_for('diagnose_pest') }}" enctype="multipart/form-data" id="pestUploadForm">
+                {% if farmers %}
+                <label>Target Farmer Profile:</label>
+                <select name="farmer_id">
+                    <option value="">-- General Diagnostic --</option>
+                    {% for f in farmers %}
+                    <option value="{{ f.id }}" {% if current_farmer and current_farmer.id == f.id %}selected{% endif %}>
+                        {{ f.name }} ({{ f.crop }})
+                    </option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+
+                <label style="margin-top: 1rem;">Select Photo File:</label>
+                <div class="file-dropzone" onclick="document.getElementById('leafImageInput').click()">
+                    <div class="dropzone-icon">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    </div>
+                    <div class="dropzone-text" id="dropzoneText">Click to browse or drop leaf image</div>
+                    <div class="dropzone-sub">Supports JPG, PNG, WEBP</div>
+                    <input type="file" name="leaf_image" id="leafImageInput" accept="image/*" style="display:none;" onchange="previewFile(this)" />
+                </div>
+
+                <!-- 1-Click Test Samples -->
+                <div style="margin-top: 1.25rem;">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 0.5rem;">Or test with verified leaf presets:</label>
+                    <div class="sample-preset-buttons">
+                        <button type="button" class="btn-sample" onclick="selectSample('yellowing')">Chlorosis (Yellowing)</button>
+                        <button type="button" class="btn-sample" onclick="selectSample('brown_spots')">Fungal Spot / Blast</button>
+                        <button type="button" class="btn-sample" onclick="selectSample('chewed_holes')">Caterpillar Damage</button>
+                        <button type="button" class="btn-sample" onclick="selectSample('healthy')">Healthy Foliage</button>
+                    </div>
+                    <input type="hidden" name="sample_type" id="sampleTypeInput" value="" />
+                </div>
+
+                <button type="submit" class="btn-primary" style="width: 100%; margin-top: 1.5rem;">
+                    Run ML Model Inference →
+                </button>
+            </form>
+        </div>
+
+        <!-- Mode 2: Live Camera Scanner -->
+        <div class="card" id="cameraModeContainer" style="display: none;">
+            <div class="card-header-flex">
+                <div>
+                    <h3 class="card-title">Live Optical Leaf Scanner</h3>
+                    <p class="card-caption" style="margin: 0;">Position leaf inside the targeting reticle to analyze.</p>
+                </div>
+                <span class="badge badge-today" id="scannerModeBadge">Live Scanner</span>
+            </div>
+
+            <!-- Permission Denied / Blocked Guidance Banner -->
+            <div id="permissionNotice" class="permission-notice-box" style="display: none;">
+                <div class="notice-header">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F87171" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <strong>Camera Blocked or No Hardware Webcam Detected</strong>
+                </div>
+                <p class="notice-text">
+                    Your browser or system blocked camera access for <code>localhost:5000</code>.
+                </p>
+                <div class="notice-steps">
+                    <div>1. Click the <strong>camera / padlock icon</strong> in your browser's address bar (left of <code>localhost:5000</code>).</div>
+                    <div>2. Toggle Camera to <strong>"Allow"</strong> or select "Always allow".</div>
+                    <div>3. Click <strong>"Retry Camera"</strong> below, or take a picture using the <strong>Native Camera</strong> or <strong>Simulation Feed</strong>.</div>
+                </div>
+                <div class="notice-actions">
+                    <button type="button" class="btn-action btn-schedule" onclick="initWebcam()">Retry Camera</button>
+                    <button type="button" class="btn-action btn-weather" onclick="startSimulatedCamera('brown_spots')">Use Simulation Stream</button>
+                    <button type="button" class="btn-action btn-outline" onclick="document.getElementById('nativeCamInput').click()">Take Photo (Native App)</button>
+                </div>
+            </div>
+
+            <form method="POST" action="{{ url_for('diagnose_pest') }}" id="cameraScanForm">
+                {% if farmers %}
+                <label>Target Farmer Profile:</label>
+                <select name="farmer_id" id="cameraFarmerSelect">
+                    <option value="">-- General Diagnostic --</option>
+                    {% for f in farmers %}
+                    <option value="{{ f.id }}" {% if current_farmer and current_farmer.id == f.id %}selected{% endif %}>
+                        {{ f.name }} ({{ f.crop }})
+                    </option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+
+                <input type="hidden" name="camera_data" id="cameraDataInput" value="" />
+
+                <!-- Optical Reticle Viewport -->
+                <div class="camera-viewport-wrap" id="cameraViewport">
+                    <video id="webcamVideo" autoplay playsinline muted></video>
+                    <canvas id="simulatedCanvas" style="display: none; width: 100%; height: 100%; object-fit: cover;"></canvas>
+                    <canvas id="snapshotCanvas" style="display: none;"></canvas>
+
+                    <!-- Tactical Reticle and Laser HUD -->
+                    <div class="scanner-overlay" id="scannerOverlay">
+                        <div class="reticle-corner top-left"></div>
+                        <div class="reticle-corner top-right"></div>
+                        <div class="reticle-corner bottom-left"></div>
+                        <div class="reticle-corner bottom-right"></div>
+                        <div class="reticle-center-cross"></div>
+                        <div class="laser-scan-line"></div>
+                        <div class="scanner-status-text" id="cameraStatusText">Initializing Scanner...</div>
+                    </div>
+                </div>
+
+                <!-- Simulation Disease Symptoms Bar (active when simulating) -->
+                <div class="sim-disease-bar" id="simDiseaseBar" style="display: none;">
+                    <span class="sim-label">Simulate Disease:</span>
+                    <button type="button" class="btn-sim-pill active" onclick="setSimDisease('brown_spots', this)">Fungal Blast</button>
+                    <button type="button" class="btn-sim-pill" onclick="setSimDisease('yellowing', this)">Chlorosis (Yellowing)</button>
+                    <button type="button" class="btn-sim-pill" onclick="setSimDisease('chewed_holes', this)">Pest Chewed</button>
+                    <button type="button" class="btn-sim-pill" onclick="setSimDisease('powdery_mildew', this)">Powdery Mildew</button>
+                    <button type="button" class="btn-sim-pill" onclick="setSimDisease('healthy', this)">Healthy Leaf</button>
+                </div>
+
+                <!-- Camera Controls Row -->
+                <div class="camera-controls-row">
+                    <div class="camera-left-actions">
+                        <button type="button" class="btn-outline btn-sm" id="startCamBtn" onclick="initWebcam()">
+                            Connect Real Camera
+                        </button>
+                        <select id="cameraSourceSelect" class="camera-select-dropdown" style="display: none;" onchange="switchCameraDevice(this.value)">
+                            <option value="">Default Camera</option>
+                        </select>
+                        <button type="button" class="btn-outline btn-sm" onclick="document.getElementById('nativeCamInput').click()">
+                            Take Photo (Native App)
+                        </button>
+                    </div>
+
+                    <button type="button" class="btn-primary btn-sm" id="captureBtn" onclick="captureAndScan()">
+                        Capture &amp; Analyze Frame →
+                    </button>
+                </div>
+            </form>
+
+            <!-- Native Camera / Snapshot Input -->
+            <input type="file" id="nativeCamInput" accept="image/*" capture="environment" style="display:none;" onchange="handleNativeCameraUpload(this)" />
+        </div>
+    </div>
+
+    <!-- Right Column: Model Inference Results -->
+    <div>
+        {% if diagnosis %}
+        <div class="card diagnosis-result-card">
+            <div class="card-header-flex">
+                <span class="badge badge-success">ML Inference Output</span>
+                <span class="confidence-badge">Confidence: {{ (diagnosis.confidence * 100)|round }}%</span>
+            </div>
+
+            <h3 class="diagnosis-name">{{ diagnosis.label }}</h3>
+            <div class="model-tag-sub">Engine: {{ diagnosis.model_version }}</div>
+
+            <div class="confidence-bar-track">
+                <div class="confidence-bar-fill" style="width: {{ (diagnosis.confidence * 100)|round }}%;"></div>
+            </div>
+
+            <div class="guidance-box" style="margin-bottom: 0.85rem;">
+                <div class="guidance-title">Pathology Description:</div>
+                <p class="guidance-text muted">{{ diagnosis.description }}</p>
+            </div>
+
+            <div class="guidance-box">
+                <div class="guidance-title">Prescribed Agronomic Treatment:</div>
+                <p class="guidance-text">{{ diagnosis.guidance }}</p>
+            </div>
+
+            <div class="ipm-tips" style="margin-top: 1rem;">
+                <div class="ipm-tip-item">
+                    <div class="ipm-badge-label">IPM</div>
+                    <div>
+                        <strong>Preventive Protocol:</strong> {{ diagnosis.ipm }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="card placeholder-card">
+            <div class="placeholder-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+            </div>
+            <h4>Diagnostic Engine Ready</h4>
+            <p class="muted">Upload an image, capture a live frame via webcam, or choose a sample preset to run real-time Random Forest inference.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Recent Pest Reports Log -->
+<div class="card table-card" style="margin-top: 2rem;">
+    <div class="card-header-flex">
+        <h3 class="card-title">Inference History Log</h3>
+        <span class="badge badge-info">{{ recent_reports|length }} Recorded</span>
+    </div>
+    {% if recent_reports %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Source</th>
+                <th>Farmer</th>
+                <th>Crop</th>
+                <th>Condition Diagnosed</th>
+                <th>Confidence</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in recent_reports %}
+            <tr>
+                <td>{{ r.created_at[:10] }}</td>
+                <td style="font-size: 0.8rem; color: var(--text-muted);">{{ r.image_name }}</td>
+                <td>{{ r.farmer_name or "General" }}</td>
+                <td>{{ r.farmer_crop or "—" }}</td>
+                <td><strong>{{ r.diagnosis }}</strong></td>
+                <td>
+                    <span class="badge badge-sm badge-success">{{ (r.confidence * 100)|round }}%</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted" style="padding: 1.5rem 0; text-align: center;">No diagnostic reports logged yet.</p>
+    {% endif %}
+</div>
+
+<script>
+let stream = null;
+let simInterval = null;
+let isSimulating = false;
+let currentSimDisease = 'brown_spots';
+let selectedDeviceId = null;
+
+function switchScannerMode(mode) {
+    const uploadBtn = document.getElementById('tabUploadBtn');
+    const cameraBtn = document.getElementById('tabCameraBtn');
+    const uploadContainer = document.getElementById('uploadModeContainer');
+    const cameraContainer = document.getElementById('cameraModeContainer');
+
+    if (mode === 'camera') {
+        uploadBtn.classList.remove('active');
+        cameraBtn.classList.add('active');
+        uploadContainer.style.display = 'none';
+        cameraContainer.style.display = 'block';
+        initWebcam();
+    } else {
+        cameraBtn.classList.remove('active');
+        uploadBtn.classList.add('active');
+        cameraContainer.style.display = 'none';
+        uploadContainer.style.display = 'block';
+        stopWebcam();
+    }
+}
+
+async function enumerateVideoDevices() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        const select = document.getElementById('cameraSourceSelect');
+        if (videoDevices.length > 1) {
+            select.innerHTML = '';
+            videoDevices.forEach((dev, idx) => {
+                const opt = document.createElement('option');
+                opt.value = dev.deviceId;
+                opt.textContent = dev.label || `Camera ${idx + 1}`;
+                if (dev.deviceId === selectedDeviceId) opt.selected = true;
+                select.appendChild(opt);
+            });
+            select.style.display = 'inline-block';
+        } else {
+            select.style.display = 'none';
+        }
+    } catch (e) {
+        console.warn("Could not enumerate devices:", e);
+    }
+}
+
+async function initWebcam(targetDeviceId = null) {
+    stopWebcamStreamOnly();
+    const video = document.getElementById('webcamVideo');
+    const simCanvas = document.getElementById('simulatedCanvas');
+    const statusText = document.getElementById('cameraStatusText');
+    const captureBtn = document.getElementById('captureBtn');
+    const startCamBtn = document.getElementById('startCamBtn');
+    const notice = document.getElementById('permissionNotice');
+    const simBar = document.getElementById('simDiseaseBar');
+    const badge = document.getElementById('scannerModeBadge');
+
+    statusText.textContent = "Connecting Camera...";
+    statusText.style.color = "#4ADE80";
+    video.style.display = "block";
+    simCanvas.style.display = "none";
+    simBar.style.display = "none";
+    isSimulating = false;
+    badge.textContent = "Live Scanner";
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        handleCameraFailure("WebRTC camera not supported in this browser environment.");
+        return;
+    }
+
+    // List of candidate constraints in descending order of preference
+    const constraintCandidates = [];
+    if (targetDeviceId) {
+        constraintCandidates.push({ video: { deviceId: { exact: targetDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+        constraintCandidates.push({ video: { deviceId: { exact: targetDeviceId } } });
+    }
+    constraintCandidates.push({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+    constraintCandidates.push({ video: { facingMode: { ideal: "user" }, width: { ideal: 640 }, height: { ideal: 480 } } });
+    constraintCandidates.push({ video: true });
+
+    let activeStream = null;
+    let lastError = null;
+
+    for (const constraint of constraintCandidates) {
+        try {
+            activeStream = await navigator.mediaDevices.getUserMedia(constraint);
+            if (activeStream) break;
+        } catch (err) {
+            lastError = err;
+        }
+    }
+
+    if (activeStream) {
+        stream = activeStream;
+        video.srcObject = stream;
+        try {
+            await video.play();
+        } catch (e) {
+            console.log("Auto-play started");
+        }
+        statusText.textContent = "Live Optical Alignment Active";
+        statusText.style.color = "#4ADE80";
+        captureBtn.disabled = false;
+        startCamBtn.textContent = "Camera Connected";
+        notice.style.display = "none";
+        badge.textContent = "Webcam Live";
+
+        // Refresh device list to show camera names now that permission is granted
+        enumerateVideoDevices();
+    } else {
+        const errMsg = lastError ? (lastError.name === 'NotAllowedError' ? 'Permission Denied by Browser' : lastError.message) : 'Device Not Found';
+        handleCameraFailure(errMsg);
+    }
+}
+
+function switchCameraDevice(deviceId) {
+    selectedDeviceId = deviceId;
+    initWebcam(deviceId);
+}
+
+function handleCameraFailure(errorMsg) {
+    const statusText = document.getElementById('cameraStatusText');
+    const notice = document.getElementById('permissionNotice');
+    const startCamBtn = document.getElementById('startCamBtn');
+
+    statusText.textContent = "Camera Access Blocked: " + errorMsg;
+    statusText.style.color = "#F87171";
+    notice.style.display = "block";
+    startCamBtn.textContent = "Connect Real Camera";
+
+    // Start simulation feed so user can test scanning without blockage
+    startSimulatedCamera(currentSimDisease);
+}
+
+function setSimDisease(diseaseKey, btnEl) {
+    currentSimDisease = diseaseKey;
+    document.querySelectorAll('.btn-sim-pill').forEach(btn => btn.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    startSimulatedCamera(diseaseKey);
+}
+
+function startSimulatedCamera(diseaseKey = 'brown_spots') {
+    stopWebcamStreamOnly();
+    isSimulating = true;
+    currentSimDisease = diseaseKey;
+
+    const video = document.getElementById('webcamVideo');
+    const simCanvas = document.getElementById('simulatedCanvas');
+    const statusText = document.getElementById('cameraStatusText');
+    const captureBtn = document.getElementById('captureBtn');
+    const badge = document.getElementById('scannerModeBadge');
+    const simBar = document.getElementById('simDiseaseBar');
+
+    video.style.display = "none";
+    simCanvas.style.display = "block";
+    simBar.style.display = "flex";
+    simCanvas.width = 640;
+    simCanvas.height = 480;
+
+    statusText.textContent = "Optical Simulation Stream Active";
+    statusText.style.color = "#4ADE80";
+    badge.textContent = "Simulation Feed";
+    captureBtn.disabled = false;
+
+    const ctx = simCanvas.getContext('2d');
+    let t = 0;
+
+    if (simInterval) clearInterval(simInterval);
+    simInterval = setInterval(() => {
+        t += 0.04;
+        // Background dark gradient
+        ctx.fillStyle = "#050906";
+        ctx.fillRect(0, 0, 640, 480);
+
+        // Grid overlay lines
+        ctx.strokeStyle = "rgba(34, 197, 94, 0.06)";
+        ctx.lineWidth = 1;
+        for (let x = 0; x < 640; x += 40) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 480); ctx.stroke();
+        }
+        for (let y = 0; y < 480; y += 40) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(640, y); ctx.stroke();
+        }
+
+        // Animated crop leaf with realistic geometry
+        ctx.save();
+        ctx.translate(320 + Math.sin(t) * 10, 240 + Math.cos(t * 0.8) * 6);
+        ctx.rotate(Math.sin(t * 0.5) * 0.04);
+
+        // Determine base color based on disease
+        let leafBaseColor = "#2D8A4E";
+        let veinColor = "#3EB56A";
+
+        if (diseaseKey === 'yellowing') {
+            leafBaseColor = "#B0A22C";
+            veinColor = "#8C801E";
+        } else if (diseaseKey === 'powdery_mildew') {
+            leafBaseColor = "#3E7B54";
+            veinColor = "#5CA576";
+        }
+
+        // Leaf blade
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 150, 230, 0.08, 0, Math.PI * 2);
+        ctx.fillStyle = leafBaseColor;
+        ctx.fill();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "#1A5430";
+        ctx.stroke();
+
+        // Leaf midrib vein
+        ctx.beginPath();
+        ctx.moveTo(0, -220);
+        ctx.quadraticCurveTo(8, 0, 0, 220);
+        ctx.strokeStyle = veinColor;
+        ctx.lineWidth = 6;
+        ctx.stroke();
+
+        // Secondary veins
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = veinColor;
+        for (let i = -160; i < 180; i += 40) {
+            ctx.beginPath();
+            ctx.moveTo(0, i);
+            ctx.quadraticCurveTo(40, i - 15, 90, i - 30);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(0, i + 20);
+            ctx.quadraticCurveTo(-40, i + 5, -90, i - 10);
+            ctx.stroke();
+        }
+
+        // Draw Symptom Pathology
+        if (diseaseKey === 'brown_spots') {
+            // Fungal blast / brown necrosis spots
+            ctx.fillStyle = "#6B3E1E";
+            ctx.beginPath(); ctx.ellipse(-40, -60, 30, 16, 0.4, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#542D15";
+            ctx.beginPath(); ctx.ellipse(45, 30, 36, 20, -0.3, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#784723";
+            ctx.beginPath(); ctx.ellipse(-15, 90, 26, 14, 0.2, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#48260F";
+            ctx.beginPath(); ctx.ellipse(20, -120, 20, 12, -0.2, 0, Math.PI * 2); ctx.fill();
+        } else if (diseaseKey === 'chewed_holes') {
+            // Caterpillar bite marks (irregular transparent/dark notches)
+            ctx.fillStyle = "#050906";
+            ctx.beginPath(); ctx.ellipse(110, -40, 42, 28, 0.3, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(-105, 50, 40, 26, -0.2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(10, 60, 24, 20, 0.1, 0, Math.PI * 2); ctx.fill();
+        } else if (diseaseKey === 'powdery_mildew') {
+            // White fungal powder blotches
+            ctx.fillStyle = "rgba(235, 245, 240, 0.75)";
+            ctx.beginPath(); ctx.ellipse(-35, -50, 40, 30, 0.2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(40, 40, 48, 36, -0.1, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(0, 100, 34, 25, 0.3, 0, Math.PI * 2); ctx.fill();
+        } else if (diseaseKey === 'yellowing') {
+            // Chlorosis yellow patches
+            ctx.fillStyle = "rgba(215, 195, 45, 0.75)";
+            ctx.beginPath(); ctx.ellipse(-30, -70, 50, 45, 0.1, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(35, 50, 55, 40, -0.2, 0, Math.PI * 2); ctx.fill();
+        }
+
+        ctx.restore();
+    }, 40);
+}
+
+function stopWebcamStreamOnly() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+    }
+}
+
+function stopWebcam() {
+    stopWebcamStreamOnly();
+    if (simInterval) {
+        clearInterval(simInterval);
+        simInterval = null;
+    }
+    const statusText = document.getElementById('cameraStatusText');
+    if (statusText) statusText.textContent = "Camera Inactive";
+    const startCamBtn = document.getElementById('startCamBtn');
+    if (startCamBtn) startCamBtn.textContent = "Connect Real Camera";
+}
+
+function captureAndScan() {
+    const video = document.getElementById('webcamVideo');
+    const simCanvas = document.getElementById('simulatedCanvas');
+    const canvas = document.getElementById('snapshotCanvas');
+    const cameraDataInput = document.getElementById('cameraDataInput');
+    const form = document.getElementById('cameraScanForm');
+    const viewport = document.getElementById('cameraViewport');
+
+    // Trigger visual laser flash effect
+    if (viewport) {
+        viewport.classList.add('scanning');
+    }
+
+    canvas.width = 640;
+    canvas.height = 480;
+    const ctx = canvas.getContext('2d');
+
+    if (isSimulating) {
+        ctx.drawImage(simCanvas, 0, 0, 640, 480);
+    } else if (video && video.videoWidth > 0) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    } else {
+        // Fallback to simulation canvas if video stream is unrendered
+        ctx.drawImage(simCanvas, 0, 0, 640, 480);
+    }
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    cameraDataInput.value = dataUrl;
+
+    setTimeout(() => {
+        stopWebcamStreamOnly();
+        form.submit();
+    }, 350);
+}
+
+function handleNativeCameraUpload(input) {
+    if (input.files && input.files[0]) {
+        const form = document.getElementById('pestUploadForm');
+        const uploadInput = document.getElementById('leafImageInput');
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(input.files[0]);
+        uploadInput.files = dataTransfer.files;
+
+        // Synchronize selected farmer profile
+        const camSelect = document.getElementById('cameraFarmerSelect');
+        const uploadSelect = document.querySelector('#pestUploadForm select[name="farmer_id"]');
+        if (camSelect && uploadSelect) {
+            uploadSelect.value = camSelect.value;
+        }
+
+        switchScannerMode('upload');
+        form.submit();
+    }
+}
+
+function previewFile(input) {
+    if (input.files && input.files[0]) {
+        document.getElementById('dropzoneText').textContent = 'Selected: ' + input.files[0].name;
+        document.getElementById('sampleTypeInput').value = '';
+    }
+}
+
+function selectSample(type) {
+    document.getElementById('sampleTypeInput').value = type;
+    document.getElementById('dropzoneText').textContent = 'Preset: ' + type.replace('_', ' ').toUpperCase();
+    document.getElementById('pestUploadForm').submit();
+}
+</script>
+{% endblock %}

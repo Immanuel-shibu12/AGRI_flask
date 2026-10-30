@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Farmer Registration — AgriSchedule{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Farmer Registration</h1>
+    <p class="page-subtitle">Register farmer profiles to track personalized crop calendars, real-time weather advisories, and pest management.</p>
+</div>
+
+<div class="hero-card">
+    <div class="hero-eyebrow">Smart solutions for a better tomorrow</div>
+    <div class="hero-headline">Nurturing Fields.<br>Empowering Farmers.</div>
+    <div class="hero-sub">Register a farmer profile to start tracking their crop calendar, weather advisory, and pest guidance in one place.</div>
+    <div class="hero-stats">
+        <div class="hero-stat">
+            <div class="hero-stat-value">{{ total_farmers }}</div>
+            <div class="hero-stat-label">Farmers registered</div>
+        </div>
+        <div class="hero-stat">
+            <div class="hero-stat-value">{{ total_acres }}</div>
+            <div class="hero-stat-label">Acres managed</div>
+        </div>
+        <div class="hero-stat">
+            <div class="hero-stat-value">{{ crop_types }}</div>
+            <div class="hero-stat-label">Crop types tracked</div>
+        </div>
+        <div class="hero-stat">
+            <div class="hero-stat-value">{{ locations }}</div>
+            <div class="hero-stat-label">Locations covered</div>
+        </div>
+    </div>
+</div>
+
+<div class="card form-card">
+    <div class="card-header">
+        <h3 class="card-title">New Farmer Profile</h3>
+        <span class="badge badge-info">Step 1 of 1</span>
+    </div>
+    <form method="POST" action="{{ url_for('submit_registration') }}">
+        <div class="form-grid">
+            <div class="form-col">
+                <label>Farmer Full Name *</label>
+                <input type="text" name="name" placeholder="e.g. Ramesh Kumar" required />
+
+                <label>Phone Number</label>
+                <input type="tel" name="phone" placeholder="e.g. +91 98765 43210" />
+
+                <label>Location (Village / District / State) *</label>
+                <input type="text" name="location" placeholder="e.g. Thrissur, Kerala or Salem, Tamil Nadu" required />
+
+                <label>Crop *</label>
+                <select name="crop" id="cropSelect" required>
+                    {% for c in crops %}
+                    <option value="{{ c }}">{{ c }}</option>
+                    {% endfor %}
+                </select>
+
+                <label>Variety *</label>
+                <select name="variety" id="varietySelect" required></select>
+            </div>
+            <div class="form-col">
+                <label>Field Area (Acres) *</label>
+                <input type="number" name="field_area" min="0.1" step="0.1" value="1.0" required />
+
+                <label>Sowing / Transplanting Date *</label>
+                <input type="date" name="sowing_date" required />
+
+                <div class="info-box" style="margin-top: 1.5rem;">
+                    <div class="info-title">Calculation Logic:</div>
+                    <p class="info-text">AgriSchedule calculates critical day-offset stages (Crown Root Initiation, fertilizer top dressing, pesticide scouting, flowering window, and harvest) directly from your sowing date.</p>
+                </div>
+            </div>
+        </div>
+        <p class="form-caption">Phone number is used only to send critical schedule reminders via SMS or WhatsApp.</p>
+        <button type="submit" class="btn-primary">Register Farmer &amp; Generate Schedule →</button>
+    </form>
+</div>
+
+<div class="card table-card">
+    <div class="card-header-flex">
+        <h3 class="card-title">Registered Farmers Directory</h3>
+        <span class="badge badge-success">{{ farmers|length }} Active</span>
+    </div>
+    {% if farmers %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Farmer Name</th>
+                <th>Phone</th>
+                <th>Location</th>
+                <th>Crop &amp; Variety</th>
+                <th>Area</th>
+                <th>Sowing Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in farmers %}
+            <tr>
+                <td><strong>#{{ f.id }}</strong></td>
+                <td>
+                    <div style="font-weight: 600;">{{ f.name }}</div>
+                </td>
+                <td>{{ f.phone or "—" }}</td>
+                <td>{{ f.location }}</td>
+                <td>
+                    <span class="badge badge-crop">{{ f.crop }}</span>
+                    <span class="muted" style="font-size: 0.8rem;">{{ f.variety }}</span>
+                </td>
+                <td>{{ f.field_area }} ac</td>
+                <td>{{ f.sowing_date }}</td>
+                <td>
+                    <div class="action-buttons">
+                        <a href="{{ url_for('schedule_page', farmer_id=f.id) }}" class="btn-action btn-schedule" title="View Crop Schedule">Schedule</a>
+                        <a href="{{ url_for('weather_page', farmer_id=f.id) }}" class="btn-action btn-weather" title="View Weather Advisory">Weather</a>
+                        <form method="POST" action="{{ url_for('delete_farmer_route', farmer_id=f.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to remove {{ f.name }}?');">
+                            <button type="submit" class="btn-action btn-delete" title="Delete Farmer">Delete</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted" style="padding: 1.5rem 0; text-align: center;">No farmers registered yet. Use the form above to add your first profile!</p>
+    {% endif %}
+</div>
+
+<script>
+const cropSelect = document.getElementById("cropSelect");
+const varietySelect = document.getElementById("varietySelect");
+
+async function loadVarieties() {
+    const crop = cropSelect.value;
+    if (!crop) return;
+    try {
+        const resp = await fetch(`/varieties/${encodeURIComponent(crop)}`);
+        const varieties = await resp.json();
+        varietySelect.innerHTML = "";
+        varieties.forEach((v) => {
+            const opt = document.createElement("option");
+            opt.value = v;
+            opt.textContent = v;
+            varietySelect.appendChild(opt);
+        });
+    } catch (e) {
+        console.error("Failed to fetch varieties", e);
+    }
+}
+
+cropSelect.addEventListener("change", loadVarieties);
+loadVarieties();
+</script>
+{% endblock %}

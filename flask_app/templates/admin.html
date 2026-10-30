@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Control Panel — AgriSchedule{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Admin Operations Dashboard</h1>
+    <p class="page-subtitle">Manage crop calendar master stages, farmer records, and inspection logs.</p>
+</div>
+
+<!-- Admin Stats Row -->
+<div class="hero-stats-row">
+    <div class="stat-card">
+        <div class="stat-value">{{ farmers|length }}</div>
+        <div class="stat-label">Registered Farmers</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ crop_stages|length }}</div>
+        <div class="stat-label">Crop Calendar Stages</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ pest_reports|length }}</div>
+        <div class="stat-label">Pest Diagnoses</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ crops|length }}</div>
+        <div class="stat-label">Supported Crops</div>
+    </div>
+</div>
+
+<!-- Add New Crop Stage Form -->
+<div class="card form-card" style="margin-top: 1.5rem;">
+    <div class="card-header-flex">
+        <h3 class="card-title">Add New Crop Calendar Stage</h3>
+        <span class="badge badge-info">Master Schedule Definition</span>
+    </div>
+    <form method="POST" action="{{ url_for('admin_add_stage') }}">
+        <div class="form-grid">
+            <div class="form-col">
+                <label>Crop Name *</label>
+                <input type="text" name="crop" placeholder="e.g. Rice, Wheat, Cotton, Maize" required />
+
+                <label>Variety *</label>
+                <input type="text" name="variety" placeholder="e.g. Generic or Hybrid-6444" required />
+
+                <label>Day Offset (Days from Sowing) *</label>
+                <input type="number" name="day_offset" min="0" placeholder="e.g. 21" required />
+
+                <label>Category *</label>
+                <select name="category" required>
+                    <option value="sowing">Sowing</option>
+                    <option value="transplanting">Transplanting</option>
+                    <option value="irrigation">Irrigation</option>
+                    <option value="fertilizer">Fertilizer</option>
+                    <option value="weeding">Weeding</option>
+                    <option value="pesticide">Pesticide / Spray</option>
+                    <option value="observation">Observation / Scouting</option>
+                    <option value="harvest">Harvest</option>
+                </select>
+            </div>
+            <div class="form-col">
+                <label>Stage Name *</label>
+                <input type="text" name="stage_name" placeholder="e.g. Crown Root Initiation (CRI)" required />
+
+                <label>Operational Instructions *</label>
+                <textarea name="instructions" rows="4" placeholder="Detail agronomic instructions for the farmer..." required></textarea>
+
+                <div style="margin-top: 1rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" name="weather_sensitive" value="1" style="width: auto;" />
+                        <span>Weather-sensitive operation (affected by rain / high wind)</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <button type="submit" class="btn-primary" style="margin-top: 1rem;">Add Stage to Master Calendar →</button>
+    </form>
+</div>
+
+<!-- Crop Stages Table -->
+<div class="card table-card" style="margin-top: 1.5rem;">
+    <div class="card-header-flex">
+        <h3 class="card-title">Configured Crop Stages ({{ crop_stages|length }})</h3>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Crop</th>
+                <th>Variety</th>
+                <th>Day</th>
+                <th>Stage Name</th>
+                <th>Category</th>
+                <th>Weather Sensitive</th>
+                <th>Instructions</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in crop_stages %}
+            <tr>
+                <td><strong>{{ s.crop }}</strong></td>
+                <td>{{ s.variety }}</td>
+                <td>Day {{ s.day_offset }}</td>
+                <td>{{ s.stage_name }}</td>
+                <td><span class="category-badge">{{ s.category }}</span></td>
+                <td>{% if s.weather_sensitive %}<span class="badge badge-warning">Sensitive</span>{% else %}—{% endif %}</td>
+                <td style="max-width: 320px; white-space: normal; font-size: 0.8rem; color: var(--text-muted);">
+                    {{ s.instructions }}
+                </td>
+                <td>
+                    <form method="POST" action="{{ url_for('admin_delete_stage', stage_id=s.id) }}" onsubmit="return confirm('Delete this crop stage?');">
+                        <button type="submit" class="btn-action btn-delete" title="Delete Stage">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Registered Farmers Table -->
+<div class="card table-card" style="margin-top: 1.5rem;">
+    <div class="card-header-flex">
+        <h3 class="card-title">Registered Farmers Database ({{ farmers|length }})</h3>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Location</th>
+                <th>Crop</th>
+                <th>Variety</th>
+                <th>Area</th>
+                <th>Sowing Date</th>
+                <th>Registered At</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in farmers %}
+            <tr>
+                <td>#{{ f.id }}</td>
+                <td><strong>{{ f.name }}</strong></td>
+                <td>{{ f.phone or "—" }}</td>
+                <td>{{ f.location }}</td>
+                <td>{{ f.crop }}</td>
+                <td>{{ f.variety }}</td>
+                <td>{{ f.field_area }} ac</td>
+                <td>{{ f.sowing_date }}</td>
+                <td style="font-size: 0.75rem; color: var(--text-muted);">{{ f.created_at[:10] }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('delete_farmer_route', farmer_id=f.id) }}" onsubmit="return confirm('Delete farmer {{ f.name }}?');">
+                        <button type="submit" class="btn-action btn-delete" title="Delete Farmer">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

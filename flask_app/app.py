@@ -240,18 +240,18 @@ def diagnose_pest():
         except Exception as e:
             flash(f"Could not decode camera scan: {e}", "error")
     elif sample_type:
-        # Generate synthetic demo image for 1-click presets
-        arr = np.zeros((150, 150, 3), dtype=np.uint8)
-        if sample_type == "yellowing":
-            arr[:, :] = [190, 180, 50]  # yellow tone
-        elif sample_type == "brown_spots":
-            arr[:, :] = [100, 150, 80]  # green base
-            arr[40:110, 40:110] = [60, 40, 30]  # dark brown blast lesion
-        elif sample_type == "healthy":
-            arr[:, :] = [45, 160, 45]   # rich green
-        else:
-            arr[:, :] = [120, 140, 90]  # chewed / mixed
-        pil_img = Image.fromarray(arr)
+        # Generate rich realistic demo image for 1-click presets
+        from train_pest_model import generate_synthetic_leaf
+        category_map = {
+            "yellowing": "yellowing_leaves",
+            "brown_spots": "brown_spots",
+            "chewed_holes": "chewed_holes",
+            "healthy": "healthy",
+            "powdery_mildew": "powdery_mildew",
+        }
+        cat = category_map.get(sample_type, sample_type)
+        pil_img = generate_synthetic_leaf(cat, seed=42)
+        pil_img = pil_img.resize((380, 380), Image.Resampling.NEAREST)
         source_name = f"Sample ({sample_type})"
     elif "leaf_image" in request.files:
         file = request.files["leaf_image"]

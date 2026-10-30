@@ -174,17 +174,85 @@
         </div>
     </div>
 
-    <!-- Right Column: Model Inference Results -->
+    <!-- Right Column: Model Inference & Visual Bounding-Box Detection Results -->
     <div>
         {% if diagnosis %}
-        <div class="card diagnosis-result-card">
+        <!-- Visual Bounding-Box Detection Card -->
+        <div class="card detection-viewport-card">
             <div class="card-header-flex">
-                <span class="badge badge-success">ML Inference Output</span>
+                <div>
+                    <span class="badge badge-success">Computer Vision Localization</span>
+                    <h3 class="card-title" style="margin-top: 0.35rem; font-size: 1.15rem;">Optical Symptom Detection</h3>
+                </div>
+                <span class="confidence-badge" style="background: rgba(34, 197, 94, 0.15); border: 1px solid var(--green); color: #4ADE80;">
+                    {{ diagnosis.boxes|length }} Lesion Zones Isolated
+                </span>
+            </div>
+
+            <!-- View Switcher -->
+            <div class="detection-toggle-bar">
+                <button type="button" class="btn-toggle-view active" id="btnShowAnnotated" onclick="toggleDetectionImage('annotated')">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                    AI Bounding Boxes
+                </button>
+                <button type="button" class="btn-toggle-view" id="btnShowOriginal" onclick="toggleDetectionImage('original')">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+                    Original Camera Scan
+                </button>
+            </div>
+
+            <!-- Detection Image Viewport -->
+            <div class="detection-image-container">
+                <img id="detectionResultImg" src="{{ diagnosis.annotated_image_b64 }}" alt="Leaf Bounding Box Detection" class="detection-img" />
+                <div class="detection-scanner-badge">
+                    <span class="pulse-dot"></span> SCANNER HUD ACTIVE
+                </div>
+            </div>
+
+            <!-- HUD Summary Metrics Ribbon -->
+            <div class="detection-hud-stats">
+                <div class="hud-stat-box">
+                    <span class="hud-stat-num">{{ diagnosis.total_lesions_count }}</span>
+                    <span class="hud-stat-label">Spots / Lesions</span>
+                </div>
+                <div class="hud-stat-box">
+                    <span class="hud-stat-num">{{ diagnosis.affected_area_pct }}%</span>
+                    <span class="hud-stat-label">Foliage Affected</span>
+                </div>
+                <div class="hud-stat-box">
+                    <span class="hud-stat-badge" style="background: {{ diagnosis.severity_color }}; color: #000000;">
+                        {{ diagnosis.severity_label }}
+                    </span>
+                    <span class="hud-stat-label">Damage Severity</span>
+                </div>
+            </div>
+
+            <!-- Color-Coded Bounding Box Legend -->
+            <div class="detection-legend-section">
+                <div class="legend-title">Detected Symptom Bounding Boxes:</div>
+                <div class="detection-boxes-list">
+                    {% for box in diagnosis.boxes %}
+                    <div class="detection-box-chip">
+                        <span class="box-color-indicator" style="background: {{ box.color_hex }};"></span>
+                        <div class="box-chip-content">
+                            <strong style="color: #FFFFFF;">{{ box.label }}</strong>
+                            <span class="box-chip-coords">Region: ({{ box.coords.xmin }}, {{ box.coords.ymin }}) to ({{ box.coords.xmax }}, {{ box.coords.ymax }})</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Agronomic Pathology & Prescribed Treatment Card -->
+        <div class="card diagnosis-result-card" style="margin-top: 1.25rem;">
+            <div class="card-header-flex">
+                <span class="badge badge-info">Pathology Report</span>
                 <span class="confidence-badge">Confidence: {{ (diagnosis.confidence * 100)|round }}%</span>
             </div>
 
             <h3 class="diagnosis-name">{{ diagnosis.label }}</h3>
-            <div class="model-tag-sub">Engine: {{ diagnosis.model_version }}</div>
+            <div class="model-tag-sub">Classifier: {{ diagnosis.model_version }}</div>
 
             <div class="confidence-bar-track">
                 <div class="confidence-bar-fill" style="width: {{ (diagnosis.confidence * 100)|round }}%;"></div>
@@ -215,7 +283,7 @@
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
             </div>
             <h4>Diagnostic Engine Ready</h4>
-            <p class="muted">Upload an image, capture a live frame via webcam, or choose a sample preset to run real-time Random Forest inference.</p>
+            <p class="muted">Upload an image, capture a live frame via webcam, or choose a sample preset to run real-time Random Forest inference with optical bounding boxes.</p>
         </div>
         {% endif %}
     </div>
@@ -620,5 +688,27 @@ function selectSample(type) {
     document.getElementById('dropzoneText').textContent = 'Preset: ' + type.replace('_', ' ').toUpperCase();
     document.getElementById('pestUploadForm').submit();
 }
+
+{% if diagnosis %}
+const annotatedImgSrc = "{{ diagnosis.annotated_image_b64 }}";
+const originalImgSrc = "{{ diagnosis.original_image_b64 }}";
+
+function toggleDetectionImage(mode) {
+    const imgEl = document.getElementById('detectionResultImg');
+    const btnAnnotated = document.getElementById('btnShowAnnotated');
+    const btnOriginal = document.getElementById('btnShowOriginal');
+    if (!imgEl) return;
+
+    if (mode === 'annotated') {
+        imgEl.src = annotatedImgSrc;
+        if (btnAnnotated) btnAnnotated.classList.add('active');
+        if (btnOriginal) btnOriginal.classList.remove('active');
+    } else {
+        imgEl.src = originalImgSrc;
+        if (btnOriginal) btnOriginal.classList.add('active');
+        if (btnAnnotated) btnAnnotated.classList.remove('active');
+    }
+}
+{% endif %}
 </script>
 {% endblock %}
